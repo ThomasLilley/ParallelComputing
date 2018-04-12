@@ -63,32 +63,8 @@ vector<int> print_txt() {
 	return temp_return;
 }
 
-int main(int argc, char **argv) {
-	//Part 1 - handle command line options such as device selection, verbosity, etc.
-	int platform_id = 0;
-	int device_id = 0;
-
-	for (int i = 1; i < argc; i++)	{
-		if ((strcmp(argv[i], "-p") == 0) && (i < (argc - 1))) { platform_id = atoi(argv[++i]); }
-		else if ((strcmp(argv[i], "-d") == 0) && (i < (argc - 1))) { device_id = atoi(argv[++i]); }
-		else if (strcmp(argv[i], "-l") == 0) { std::cout << ListPlatformsDevices() << std::endl; }
-		else if (strcmp(argv[i], "-h") == 0) { print_help(); }
-	}
-
-	//load in the file and place the temperature values into a vector
-	vector<int> temperature = print_txt();
-	vector<int> temp1(linecount/2);
-	vector<int> temp2(linecount/2);
-
-
-	//split loaded data into 2 arrays to find average in kernel later 
-	for (int i = 0; i < (linecount / 2); i++) {
-		temp1[i] = temperature[i];
-	}
-	for (int i = 0; i < (linecount/2); i++) {
-		temp2[i] = temperature[(linecount/2+i)];
-	}
-	
+void mean(vector<int>temperature, int platform_id, int device_id)
+{
 
 	//detect any potential exceptions
 	try {
@@ -122,63 +98,95 @@ int main(int argc, char **argv) {
 
 		//Part 4 - memory allocation
 		//host - input
-		typedef int mytype;
-		std::vector<mytype> A((linecount/2), 0);//allocate 10 elements with an initial value 1 - their sum is 10 so it should be easy to check the results!
 
-		//the following part adjusts the length of the input vector so it can be run for a specific workgroup size
-		//if the total input length is divisible by the workgroup size
-		//this makes the code more efficient
-		size_t local_size = 347;
-
-		size_t padding_size = A.size() % local_size;
-
-		//if the input vector is not a multiple of the local_size
-		//insert additional neutral elements (0 for addition) so that the total will not be affected
-		if (padding_size) {
-			//create an extra vector with neutral values
-			std::vector<int> A_ext(local_size-padding_size, 0);
-			//append that extra vector to our input
-			A.insert(A.end(), A_ext.begin(), A_ext.end());
+		//split loaded data into 2 arrays to find average in kernel later 
+		vector<int> A(linecount / 2);
+		vector<int> B(linecount / 2);
+		for (int i = 0; i < (linecount / 2); i++) {
+			A[i] = temperature[i];
+		}
+		for (int i = 0; i < (linecount / 2); i++) {
+			B[i] = temperature[(linecount / 2 + i)];
 		}
 
-		size_t input_elements = A.size();//number of input elements
-		size_t input_size = A.size()*sizeof(mytype);//size in bytes
-		size_t nr_groups = input_elements / local_size;
+		size_t vector_elements = A.size();//number of elements
+		size_t vector_size = A.size() * sizeof(int);//size in bytes
 
-		//host - output
-		std::vector<mytype> C(input_elements);
-		size_t output_size = C.size()*sizeof(mytype);//size in bytes
+													//host - output
+		std::vector<int> C(vector_elements);
 
 		//device - buffers
-		cl::Buffer buffer_A(context, CL_MEM_READ_ONLY, input_size);
-		cl::Buffer buffer_B(context, CL_MEM_READ_ONLY, input_size);
-		cl::Buffer buffer_C(context, CL_MEM_READ_WRITE, output_size);
+		cl::Buffer buffer_A(context, CL_MEM_READ_WRITE, vector_size);
+		cl::Buffer buffer_B(context, CL_MEM_READ_WRITE, vector_size);
+		cl::Buffer buffer_C(context, CL_MEM_READ_WRITE, vector_size);
 
 		//Part 5 - device operations
 
-		//5.1 copy array A to and initialise other arrays on device memory
-		queue.enqueueWriteBuffer(buffer_A, CL_TRUE, 0, input_size, &temp1[0]);
-		queue.enqueueWriteBuffer(buffer_B, CL_TRUE, 0, input_size, &temp2[0]);
-		queue.enqueueFillBuffer(buffer_C, 0, 0, output_size);//zero C buffer on device memory
+		//5.1 Copy arrays A and B to device memory
+		queue.enqueueWriteBuffer(buffer_A, CL_TRUE, 0, vector_size, &A[0]);
+		queue.enqueueWriteBuffer(buffer_B, CL_TRUE, 0, vector_size, &B[0]);
 
-		//5.2 Setup and execute all kernels (i.e. device code)
-		cl::Kernel kernel_1 = cl::Kernel(program, "average_1");
-		kernel_1.setArg(0, buffer_A);
-		kernel_1.setArg(1, buffer_B);
-		kernel_1.setArg(2, buffer_C);
-		//kernel_1.setArg(2, cl::Local(local_size*sizeof(mytype)));//local memory size
+		//5.2 Setup and execute the kernel (i.e. device code)
+		cl::Kernel kernel_add = cl::Kernel(program, "add");
+		kernel_add.setArg(0, buffer_A);
+		kernel_add.setArg(1, buffer_B);
+		kernel_add.setArg(2, buffer_C);
 
-		//call all kernels in a sequence
-		queue.enqueueNDRangeKernel(kernel_1, cl::NullRange, cl::NDRange(input_elements), cl::NDRange(local_size));
+		queue.enqueueNDRangeKernel(kernel_add, cl::NullRange, cl::NDRange(vector_elements), cl::NullRange);
 
 		//5.3 Copy the result from device to host
-		queue.enqueueReadBuffer(buffer_C, CL_TRUE, 0, output_size, &C[0]);
+		queue.enqueueReadBuffer(buffer_C, CL_TRUE, 0, vector_size, &C[0]);
 
-		std::cout << "C = " << C << std::endl;
+		double mean = 0.0;
+
+		for (int i = 0; i < (linecount / 2); i++)
+		{
+			mean += C[i];
+		}
+		mean = mean / 10;
+		mean = mean / linecount;
+
+		double minim = 1000.0;
+		double maxim = -1000.0;
+		for (int i = 0; i < (linecount); i++)
+		{
+			if (temperature[i] > maxim) {
+				maxim = temperature[i];
+			}
+			else if (temperature[i] < minim) {
+				minim = temperature[i];
+			}
+		}
+		maxim = maxim / 10;
+		minim = minim / 10;
+
+		cout << "The mean average is : " << mean << endl;
+		cout << "The max value is : " << maxim << endl;
+		cout << "The minimum value is : " << minim << endl;
+
+		}	
+		catch (cl::Error err) {
+			std::cerr << "ERROR: " << err.what() << ", " << getErrorString(err.err()) << std::endl;
+		}
+}
+
+int main(int argc, char **argv) {
+	//Part 1 - handle command line options such as device selection, verbosity, etc.
+	int platform_id = 0;
+	int device_id = 0;
+
+	for (int i = 1; i < argc; i++)	{
+		if ((strcmp(argv[i], "-p") == 0) && (i < (argc - 1))) { platform_id = atoi(argv[++i]); }
+		else if ((strcmp(argv[i], "-d") == 0) && (i < (argc - 1))) { device_id = atoi(argv[++i]); }
+		else if (strcmp(argv[i], "-l") == 0) { std::cout << ListPlatformsDevices() << std::endl; }
+		else if (strcmp(argv[i], "-h") == 0) { print_help(); }
 	}
-	catch (cl::Error err) {
-		std::cerr << "ERROR: " << err.what() << ", " << getErrorString(err.err()) << std::endl;
-	}
+
+	//load in the file and place the temperature values into a vector
+	vector<int> temperature = print_txt();
+	
+	mean(temperature, platform_id, device_id);
+
 
 	return 0;
 }
