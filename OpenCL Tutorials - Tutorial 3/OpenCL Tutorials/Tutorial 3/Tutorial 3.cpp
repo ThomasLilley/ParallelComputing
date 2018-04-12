@@ -145,29 +145,180 @@ void mean(vector<int>temperature, int platform_id, int device_id)
 		}
 		mean = mean / 10;
 		mean = mean / linecount;
-
-		double minim = 1000.0;
-		double maxim = -1000.0;
-		for (int i = 0; i < (linecount); i++)
-		{
-			if (temperature[i] > maxim) {
-				maxim = temperature[i];
-			}
-			else if (temperature[i] < minim) {
-				minim = temperature[i];
-			}
-		}
-		maxim = maxim / 10;
-		minim = minim / 10;
-
 		cout << "The mean average is : " << mean << endl;
-		cout << "The max value is : " << maxim << endl;
-		cout << "The minimum value is : " << minim << endl;
+
 
 		}	
 		catch (cl::Error err) {
 			std::cerr << "ERROR: " << err.what() << ", " << getErrorString(err.err()) << std::endl;
 		}
+}
+
+void minimum(vector<int>temperature, int platform_id, int device_id) {
+
+	//detect any potential exceptions
+	try {
+		//Part 2 - host operations
+		//2.1 Select computing devices
+		cl::Context context = GetContext(platform_id, device_id);
+
+
+		//create a queue to which we will push commands for the device
+		cl::CommandQueue queue(context);
+
+		//2.2 Load & build the device code
+		cl::Program::Sources sources;
+
+		AddSources(sources, "my_kernels3.cl");
+
+		cl::Program program(context, sources);
+
+		//build and debug the kernel code
+		try {
+			program.build();
+		}
+		catch (const cl::Error& err) {
+			std::cout << "Build Status: " << program.getBuildInfo<CL_PROGRAM_BUILD_STATUS>(context.getInfo<CL_CONTEXT_DEVICES>()[0]) << std::endl;
+			std::cout << "Build Options:\t" << program.getBuildInfo<CL_PROGRAM_BUILD_OPTIONS>(context.getInfo<CL_CONTEXT_DEVICES>()[0]) << std::endl;
+			std::cout << "Build Log:\t " << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(context.getInfo<CL_CONTEXT_DEVICES>()[0]) << std::endl;
+			throw err;
+		}
+
+		//Part 4 - memory allocation
+		//host - input
+
+		//split loaded data into 2 arrays to find average in kernel later 
+		vector<int> A(linecount / 2);
+		vector<int> B(linecount / 2);
+		for (int i = 0; i < (linecount / 2); i++) {
+			A[i] = temperature[i];
+		}
+		for (int i = 0; i < (linecount / 2); i++) {
+			B[i] = temperature[(linecount / 2 + i)];
+		}
+
+		size_t vector_elements = A.size();//number of elements
+		size_t vector_size = A.size() * sizeof(int);//size in bytes
+
+													//host - output
+		std::vector<int> C(vector_elements);
+
+		//device - buffers
+		cl::Buffer buffer_A(context, CL_MEM_READ_WRITE, vector_size);
+		cl::Buffer buffer_B(context, CL_MEM_READ_WRITE, vector_size);
+		cl::Buffer buffer_C(context, CL_MEM_READ_WRITE, vector_size);
+
+		//Part 5 - device operations
+
+		//5.1 Copy arrays A and B to device memory
+		queue.enqueueWriteBuffer(buffer_A, CL_TRUE, 0, vector_size, &A[0]);
+		queue.enqueueWriteBuffer(buffer_B, CL_TRUE, 0, vector_size, &B[0]);
+
+		//5.2 Setup and execute the kernel (i.e. device code)
+		cl::Kernel kernel_add = cl::Kernel(program, "add");
+		kernel_add.setArg(0, buffer_A);
+		kernel_add.setArg(1, buffer_B);
+		kernel_add.setArg(2, buffer_C);
+
+		queue.enqueueNDRangeKernel(kernel_add, cl::NullRange, cl::NDRange(vector_elements), cl::NullRange);
+
+		//5.3 Copy the result from device to host
+		queue.enqueueReadBuffer(buffer_C, CL_TRUE, 0, vector_size, &C[0]);
+
+		double minim = 0;
+		minim = C[0];
+
+		minim = minim / 10;
+
+		cout << "The minimum value is : " << minim << endl;
+
+	}
+	catch (cl::Error err) {
+		std::cerr << "ERROR: " << err.what() << ", " << getErrorString(err.err()) << std::endl;
+	}
+
+}
+
+void maximum(vector<int>temperature, int platform_id, int device_id) {
+
+	//detect any potential exceptions
+	try {
+		//Part 2 - host operations
+		//2.1 Select computing devices
+		cl::Context context = GetContext(platform_id, device_id);
+		//create a queue to which we will push commands for the device
+		cl::CommandQueue queue(context);
+
+		//2.2 Load & build the device code
+		cl::Program::Sources sources;
+
+		AddSources(sources, "my_kernels3.cl");
+
+		cl::Program program(context, sources);
+
+		//build and debug the kernel code
+		try {
+			program.build();
+		}
+		catch (const cl::Error& err) {
+			std::cout << "Build Status: " << program.getBuildInfo<CL_PROGRAM_BUILD_STATUS>(context.getInfo<CL_CONTEXT_DEVICES>()[0]) << std::endl;
+			std::cout << "Build Options:\t" << program.getBuildInfo<CL_PROGRAM_BUILD_OPTIONS>(context.getInfo<CL_CONTEXT_DEVICES>()[0]) << std::endl;
+			std::cout << "Build Log:\t " << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(context.getInfo<CL_CONTEXT_DEVICES>()[0]) << std::endl;
+			throw err;
+		}
+
+		//Part 4 - memory allocation
+		//host - input
+
+		//split loaded data into 2 arrays to find average in kernel later 
+		vector<int> A(linecount / 2);
+		vector<int> B(linecount / 2);
+		for (int i = 0; i < (linecount / 2); i++) {
+			A[i] = temperature[i];
+		}
+		for (int i = 0; i < (linecount / 2); i++) {
+			B[i] = temperature[(linecount / 2 + i)];
+		}
+
+		size_t vector_elements = A.size();//number of elements
+		size_t vector_size = A.size() * sizeof(int);//size in bytes
+
+													//host - output
+		std::vector<int> C(vector_elements);
+
+		//device - buffers
+		cl::Buffer buffer_A(context, CL_MEM_READ_WRITE, vector_size);
+		cl::Buffer buffer_B(context, CL_MEM_READ_WRITE, vector_size);
+		cl::Buffer buffer_C(context, CL_MEM_READ_WRITE, vector_size);
+
+		//Part 5 - device operations
+
+		//5.1 Copy arrays A and B to device memory
+		queue.enqueueWriteBuffer(buffer_A, CL_TRUE, 0, vector_size, &A[0]);
+		queue.enqueueWriteBuffer(buffer_B, CL_TRUE, 0, vector_size, &B[0]);
+
+		//5.2 Setup and execute the kernel (i.e. device code)
+		cl::Kernel kernel_add = cl::Kernel(program, "maximum");
+		kernel_add.setArg(0, buffer_A);
+		kernel_add.setArg(1, buffer_B);
+		kernel_add.setArg(2, buffer_C);
+
+		queue.enqueueNDRangeKernel(kernel_add, cl::NullRange, cl::NDRange(vector_elements), cl::NullRange);
+
+		//5.3 Copy the result from device to host
+		queue.enqueueReadBuffer(buffer_C, CL_TRUE, 0, vector_size, &C[0]);
+
+		double maxim = 0;
+		maxim = C[0];
+
+		maxim = maxim / 10;
+
+		cout << "The max value is : " << maxim << endl;
+
+	}
+	catch (cl::Error err) {
+		std::cerr << "ERROR: " << err.what() << ", " << getErrorString(err.err()) << std::endl;
+	}
 }
 
 int main(int argc, char **argv) {
@@ -186,7 +337,8 @@ int main(int argc, char **argv) {
 	vector<int> temperature = print_txt();
 	
 	mean(temperature, platform_id, device_id);
-
+	minimum(temperature, platform_id, device_id);
+	maximum(temperature, platform_id, device_id);
 
 	return 0;
 }
