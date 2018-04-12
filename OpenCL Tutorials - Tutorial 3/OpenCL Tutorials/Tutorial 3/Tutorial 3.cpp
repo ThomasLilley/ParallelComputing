@@ -226,7 +226,12 @@ void minimum(vector<int>temperature, int platform_id, int device_id) {
 		queue.enqueueReadBuffer(buffer_C, CL_TRUE, 0, vector_size, &C[0]);
 
 		double minim = 0;
-		minim = C[0];
+		
+		for (int i = 0; i < (linecount/2); i++) {
+			if (C[i] < minim) {
+				minim = C[i];
+			}
+		}
 
 		minim = minim / 10;
 
@@ -309,7 +314,12 @@ void maximum(vector<int>temperature, int platform_id, int device_id) {
 		queue.enqueueReadBuffer(buffer_C, CL_TRUE, 0, vector_size, &C[0]);
 
 		double maxim = 0;
-		maxim = C[0];
+
+		for (int i = 0; i < (linecount / 2); i++) {
+			if (C[i] > maxim) {
+				maxim = C[i];
+			}
+		}
 
 		maxim = maxim / 10;
 
