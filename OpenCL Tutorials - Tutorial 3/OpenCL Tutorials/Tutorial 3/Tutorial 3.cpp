@@ -9,8 +9,9 @@
 #else
 #include <CL/cl.hpp>
 #endif
-
 #include "Utils.h"
+
+const int linecount = 1873107;
 
 void print_help() {
 	std::cerr << "Application usage:" << std::endl;
@@ -21,17 +22,16 @@ void print_help() {
 	std::cerr << "  -h : print this message" << std::endl;
 }
 
-void print_txt() {
-	const std::string filename = "C:\\Users\\Thoma\\Downloads\\OpenCL Tutorials - Tutorial 3\\OpenCL Tutorials\\x64\\Debug\\temp_lincolnshire.txt";
-	const int linecount = 1873107;
-
+vector<int> print_txt() {
+	const std::string filename = "C:\\Users\\user\\ParallelComputing\\OpenCL Tutorials - Tutorial 3\\OpenCL Tutorials\\x64\\Release\\temp_lincolnshire.txt";
+	
 	vector<std::string> stationName(linecount);
 	vector<int> year(linecount);
 	vector<int> month(linecount);
 	vector<int> day(linecount);
 	vector<int> time(linecount);
 	vector<double> temperature(linecount);
-
+	vector<int> temp_return(linecount);
 	std::ifstream in;
 	std::string line;
 	in.open(filename);
@@ -51,9 +51,16 @@ void print_txt() {
 			i++;
 			
 		}
+		for (int i = 0; i < linecount; i++)
+		{
+			temp_return[i] = (temperature[i] * 10);
+		}
+
+
 		cout << "File Read" << endl;
 	}
 	in.close();
+	return temp_return;
 }
 
 int main(int argc, char **argv) {
@@ -68,7 +75,20 @@ int main(int argc, char **argv) {
 		else if (strcmp(argv[i], "-h") == 0) { print_help(); }
 	}
 
-	print_txt();
+	//load in the file and place the temperature values into a vector
+	vector<int> temperature = print_txt();
+	vector<int> temp1(linecount/2);
+	vector<int> temp2(linecount/2);
+
+
+	//split loaded data into 2 arrays to find average in kernel later 
+	for (int i = 0; i < (linecount / 2); i++) {
+		temp1[i] = temperature[i];
+	}
+	for (int i = 0; i < (linecount/2); i++) {
+		temp2[i] = temperature[(linecount/2+i)];
+	}
+	
 
 	//detect any potential exceptions
 	try {
@@ -100,16 +120,15 @@ int main(int argc, char **argv) {
 			throw err;
 		}
 
-		typedef int mytype;
-
 		//Part 4 - memory allocation
 		//host - input
-		std::vector<mytype> A(10, 1);//allocate 10 elements with an initial value 1 - their sum is 10 so it should be easy to check the results!
+		typedef int mytype;
+		std::vector<mytype> A((linecount/2), 0);//allocate 10 elements with an initial value 1 - their sum is 10 so it should be easy to check the results!
 
 		//the following part adjusts the length of the input vector so it can be run for a specific workgroup size
 		//if the total input length is divisible by the workgroup size
 		//this makes the code more efficient
-		size_t local_size = 10;
+		size_t local_size = 347;
 
 		size_t padding_size = A.size() % local_size;
 
@@ -127,33 +146,35 @@ int main(int argc, char **argv) {
 		size_t nr_groups = input_elements / local_size;
 
 		//host - output
-		std::vector<mytype> B(input_elements);
-		size_t output_size = B.size()*sizeof(mytype);//size in bytes
+		std::vector<mytype> C(input_elements);
+		size_t output_size = C.size()*sizeof(mytype);//size in bytes
 
 		//device - buffers
 		cl::Buffer buffer_A(context, CL_MEM_READ_ONLY, input_size);
-		cl::Buffer buffer_B(context, CL_MEM_READ_WRITE, output_size);
+		cl::Buffer buffer_B(context, CL_MEM_READ_ONLY, input_size);
+		cl::Buffer buffer_C(context, CL_MEM_READ_WRITE, output_size);
 
 		//Part 5 - device operations
 
 		//5.1 copy array A to and initialise other arrays on device memory
-		queue.enqueueWriteBuffer(buffer_A, CL_TRUE, 0, input_size, &A[0]);
-		queue.enqueueFillBuffer(buffer_B, 0, 0, output_size);//zero B buffer on device memory
+		queue.enqueueWriteBuffer(buffer_A, CL_TRUE, 0, input_size, &temp1[0]);
+		queue.enqueueWriteBuffer(buffer_B, CL_TRUE, 0, input_size, &temp2[0]);
+		queue.enqueueFillBuffer(buffer_C, 0, 0, output_size);//zero C buffer on device memory
 
 		//5.2 Setup and execute all kernels (i.e. device code)
-		cl::Kernel kernel_1 = cl::Kernel(program, "reduce_add_1");
+		cl::Kernel kernel_1 = cl::Kernel(program, "average_1");
 		kernel_1.setArg(0, buffer_A);
 		kernel_1.setArg(1, buffer_B);
-//		kernel_1.setArg(2, cl::Local(local_size*sizeof(mytype)));//local memory size
+		kernel_1.setArg(2, buffer_C);
+		//kernel_1.setArg(2, cl::Local(local_size*sizeof(mytype)));//local memory size
 
 		//call all kernels in a sequence
 		queue.enqueueNDRangeKernel(kernel_1, cl::NullRange, cl::NDRange(input_elements), cl::NDRange(local_size));
 
 		//5.3 Copy the result from device to host
-		queue.enqueueReadBuffer(buffer_B, CL_TRUE, 0, output_size, &B[0]);
+		queue.enqueueReadBuffer(buffer_C, CL_TRUE, 0, output_size, &C[0]);
 
-		std::cout << "A = " << A << std::endl;
-		std::cout << "B = " << B << std::endl;
+		std::cout << "C = " << C << std::endl;
 	}
 	catch (cl::Error err) {
 		std::cerr << "ERROR: " << err.what() << ", " << getErrorString(err.err()) << std::endl;

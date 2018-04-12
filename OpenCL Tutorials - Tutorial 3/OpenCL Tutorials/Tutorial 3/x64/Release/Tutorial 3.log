@@ -1,10 +1,9 @@
 ﻿  Tutorial 3.cpp
+Tutorial 3.cpp(56): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
   Generating code
-  2 of 789 functions ( 0.3%) were compiled, the rest were copied from previous compilation.
-    0 functions were new in current compilation
-    10 functions had inline decision re-evaluated but remain unchanged
+  All 799 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   Finished generating code
-  Tutorial 3.vcxproj -> C:\Users\Thoma\Downloads\OpenCL Tutorials - Tutorial 3\OpenCL Tutorials\x64\Release\Tutorial 3.exe
-  Tutorial 3.vcxproj -> C:\Users\Thoma\Downloads\OpenCL Tutorials - Tutorial 3\OpenCL Tutorials\x64\Release\Tutorial 3.pdb (Full PDB)
+  Tutorial 3.vcxproj -> C:\Users\user\ParallelComputing\OpenCL Tutorials - Tutorial 3\OpenCL Tutorials\x64\Release\Tutorial 3.exe
+  Tutorial 3.vcxproj -> C:\Users\user\ParallelComputing\OpenCL Tutorials - Tutorial 3\OpenCL Tutorials\x64\Release\Tutorial 3.pdb (Full PDB)
   my_kernels3.cl
           1 file(s) copied.
