@@ -11,6 +11,7 @@
 #endif
 #include "Utils.h"
 
+//define a constant variable that is the length of the file
 const int linecount = 1873107;
 
 void print_help() {
@@ -22,8 +23,9 @@ void print_help() {
 	std::cerr << "  -h : print this message" << std::endl;
 }
 
-vector<int> print_txt() {
-	const std::string filename = "C:\\Users\\user\\ParallelComputing\\OpenCL Tutorials - Tutorial 3\\OpenCL Tutorials\\x64\\Release\\temp_lincolnshire.txt";
+//
+vector<int> load_txt() {
+	const std::string filename = "temp_lincolnshire.txt";
 	
 	vector<std::string> stationName(linecount);
 	vector<int> year(linecount);
@@ -65,8 +67,6 @@ vector<int> print_txt() {
 
 void mean(vector<int>temperature, int platform_id, int device_id)
 {
-
-	//detect any potential exceptions
 	try {
 		//Part 2 - host operations
 		//2.1 Select computing devices
@@ -139,12 +139,15 @@ void mean(vector<int>temperature, int platform_id, int device_id)
 
 		double mean = 0.0;
 
+		//Calculate mean from remaining values after parallel computation
 		for (int i = 0; i < (linecount / 2); i++)
 		{
 			mean += C[i];
 		}
+		//divide by 10 to regain float accuracy
 		mean = mean / 10;
 		mean = mean / linecount;
+		//output mean
 		cout << "The mean average is : " << mean << endl;
 
 
@@ -156,7 +159,6 @@ void mean(vector<int>temperature, int platform_id, int device_id)
 
 void minimum(vector<int>temperature, int platform_id, int device_id) {
 
-	//detect any potential exceptions
 	try {
 		//Part 2 - host operations
 		//2.1 Select computing devices
@@ -227,6 +229,7 @@ void minimum(vector<int>temperature, int platform_id, int device_id) {
 
 		double minim = 0;
 		
+		//calculate minimum from returned values after parallel calculation
 		for (int i = 0; i < (linecount/2); i++) {
 			if (C[i] < minim) {
 				minim = C[i];
@@ -245,8 +248,6 @@ void minimum(vector<int>temperature, int platform_id, int device_id) {
 }
 
 void maximum(vector<int>temperature, int platform_id, int device_id) {
-
-	//detect any potential exceptions
 	try {
 		//Part 2 - host operations
 		//2.1 Select computing devices
@@ -314,7 +315,7 @@ void maximum(vector<int>temperature, int platform_id, int device_id) {
 		queue.enqueueReadBuffer(buffer_C, CL_TRUE, 0, vector_size, &C[0]);
 
 		double maxim = 0;
-
+		//calculate maximum value from return values after parallel computation
 		for (int i = 0; i < (linecount / 2); i++) {
 			if (C[i] > maxim) {
 				maxim = C[i];
@@ -323,7 +324,7 @@ void maximum(vector<int>temperature, int platform_id, int device_id) {
 
 		maxim = maxim / 10;
 
-		cout << "The max value is : " << maxim << endl;
+		cout << "The maximum value is : " << maxim << endl;
 
 	}
 	catch (cl::Error err) {
@@ -344,8 +345,8 @@ int main(int argc, char **argv) {
 	}
 
 	//load in the file and place the temperature values into a vector
-	vector<int> temperature = print_txt();
-	
+	vector<int> temperature = load_txt();
+	//statistical funtions
 	mean(temperature, platform_id, device_id);
 	minimum(temperature, platform_id, device_id);
 	maximum(temperature, platform_id, device_id);
